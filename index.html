@@ -201,10 +201,8 @@
 </div>
 
 <script>
-// ── Configuração JSONBin ───────────────────────────────────────
-const JSONBIN_ID  = "69ea2535aaba8821972d1f90";
-const JSONBIN_KEY = "$2a$10$d2iyUdAuxxXLEMaQJBHUc.XviZLnGCpVCenN77jhK7boDnd.yKKGi";
-const JSONBIN_URL = "https://api.jsonbin.io/v3/b/" + JSONBIN_ID;
+// ── Configuração Google Apps Script ───────────────────────────
+const GAS_URL = "https://script.google.com/macros/s/AKfycbzdxCtup7uWSCplb0TxyA9QmtlXAUVIkx6LhIvfGVcA5vvRL4t4KaezS2nCO57_ifYj/exec";
 
 // ── Estado global ──────────────────────────────────────────────
 let formNumero = "";
@@ -229,28 +227,34 @@ function enableButtons() {
   document.getElementById("btn-limpar").disabled = false;
 }
 
-// ── JSONBin — lê e incrementa o contador ──────────────────────
-async function getNextJSONBin() {
-  // 1. Lê o valor atual
-  const rGet = await fetch(JSONBIN_URL + "/latest", {
-    headers: { "X-Master-Key": JSONBIN_KEY }
-  });
-  if (!rGet.ok) throw new Error("Leitura falhou: " + rGet.status);
-  const data   = await rGet.json();
-  const atual  = data.record.seq || 0;
-  const proximo = atual + 1;
+// ── Google Apps Script — incrementa contador na planilha ───────
+function getNextGAS() {
+  return new Promise((resolve, reject) => {
+    // Apps Script não suporta CORS com fetch, usa JSONP
+    const cb = "cb_" + Date.now();
+    const script = document.createElement("script");
+    const timeout = setTimeout(() => {
+      delete window[cb];
+      document.body.removeChild(script);
+      reject(new Error("Timeout"));
+    }, 10000);
 
-  // 2. Salva o novo valor
-  const rPut = await fetch(JSONBIN_URL, {
-    method:  "PUT",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Master-Key": JSONBIN_KEY
-    },
-    body: JSON.stringify({ seq: proximo })
+    window[cb] = function(data) {
+      clearTimeout(timeout);
+      delete window[cb];
+      document.body.removeChild(script);
+      if (data && data.seq) resolve(data.seq);
+      else reject(new Error("Resposta inválida"));
+    };
+
+    script.src = GAS_URL + "?callback=" + cb;
+    script.onerror = () => {
+      clearTimeout(timeout);
+      delete window[cb];
+      reject(new Error("Erro de rede"));
+    };
+    document.body.appendChild(script);
   });
-  if (!rPut.ok) throw new Error("Gravação falhou: " + rPut.status);
-  return proximo;
 }
 
 // ── Fallback local ─────────────────────────────────────────────
@@ -264,27 +268,28 @@ function getNextLocal() {
 async function gerarNumero() {
   const campo = document.getElementById("numero");
   campo.value = "Gerando...";
+  setInfo("Conectando ao servidor...");
   try {
-    const n    = await getNextJSONBin();
+    const n    = await getNextGAS();
     formNumero = fmt(n);
     campo.value = formNumero;
     showBanner("ok", "Número " + formNumero + " reservado com sucesso.");
     setInfo("Preencha os campos · Layout fixo · Salve como PDF ao finalizar");
   } catch(err) {
-    console.warn("[JSONBin] Fallback local:", err.message);
+    console.warn("[GAS] Fallback local:", err.message);
     const n    = getNextLocal();
     formNumero = fmt(n) + "-L";
     campo.value = formNumero;
-    showBanner("err", "Sem conexão com servidor. Número local: " + formNumero);
-    setInfo("Modo local ativo");
+    showBanner("err", "Servidor indisponível. Número local: " + formNumero);
+    setInfo("Modo local ativo · formulário liberado");
   }
 }
 
 // ── Inicializa ao carregar ─────────────────────────────────────
 window.addEventListener("DOMContentLoaded", async () => {
-  await gerarNumero();
-  document.getElementById("numero").readOnly = true;
   enableButtons();
+  document.getElementById("numero").readOnly = true;
+  await gerarNumero();
 });
 
 // ── Exportar PDF ───────────────────────────────────────────────
@@ -378,10 +383,8 @@ async function limparFormulario() {
   if (!confirm("Deseja limpar os campos e iniciar um NOVO formulário?
 Um novo número será gerado.")) return;
 
-  const btnLimpar = document.getElementById("btn-limpar");
-  const btnSalvar = document.getElementById("btn-salvar");
-  btnLimpar.disabled = true;
-  btnSalvar.disabled = true;
+  document.getElementById("btn-limpar").disabled = true;
+  document.getElementById("btn-salvar").disabled = true;
   hideBanners();
 
   document.querySelectorAll("input").forEach(inp => {
