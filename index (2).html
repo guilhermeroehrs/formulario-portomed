@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Formulário de Autorização de Despesas e Reembolso</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Times New Roman", Times, serif; background: #e8e8e8; display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 20px; }
+  .toolbar { width: 210mm; max-width: 100%; display: flex; gap: 10px; justify-content: center; margin-bottom: 10px; flex-wrap: wrap; }
+  .btn { padding: 10px 24px; border: none; border-radius: 6px; font-size: 14px; font-family: Arial, sans-serif; cursor: pointer; font-weight: 600; transition: background 0.2s, transform 0.1s; }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-save { background: #003d7a; color: white; }
+  .btn-save:hover:not(:disabled) { background: #00306a; }
+  .btn-clear { background: #6c757d; color: white; }
+  .btn-clear:hover:not(:disabled) { background: #565e64; }
+  .info-msg { font-family: Arial, sans-serif; font-size: 12px; color: #555; margin-bottom: 8px; text-align: center; }
+  .banner { display: none; width: 210mm; max-width: 100%; border-radius: 6px; padding: 10px 16px; margin-bottom: 12px; align-items: center; gap: 12px; font-family: Arial, sans-serif; font-size: 13px; }
+  .banner-warn { background: #fff3cd; border: 1px solid #ffc107; color: #856404; }
+  .banner-ok   { background: #EAF3DE; border: 1px solid #3B6D11; color: #3B6D11; }
+  .banner-err  { background: #FCEBEB; border: 1px solid #A32D2D; color: #791F1F; }
+  #form-page { background: white; width: 210mm; max-width: 100%; padding: 10mm 12mm; box-shadow: 0 2px 16px rgba(0,0,0,0.18); }
+  .header-box { background: #BCBEC0; border: 1px solid #aaa; display: flex; align-items: center; padding: 8px 14px; margin-bottom: 14px; min-height: 68px; }
+  .logo-area { flex-shrink: 0; margin-right: 14px; }
+  .logo-area img { width: 72px; height: auto; display: block; }
+  .header-text { flex: 1; text-align: center; }
+  .header-title { font-family: "Times New Roman", serif; font-size: 19pt; color: #231F20; font-weight: normal; line-height: 1.2; }
+  .header-subtitle { font-family: "Times New Roman", serif; font-size: 10pt; color: #231F20; font-style: italic; margin-top: 3px; }
+  .numero-row { display: flex; justify-content: flex-end; align-items: center; margin-bottom: 10px; padding-right: 2mm; }
+  .numero-row label { font-size: 10pt; margin-right: 6px; }
+  .section-fields { padding: 0 2mm; margin-bottom: 10px; }
+  .field-row { display: flex; align-items: flex-end; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+  .field-group { display: flex; align-items: flex-end; gap: 4px; flex: 1; min-width: 0; }
+  .field-group label { font-size: 9.5pt; white-space: nowrap; font-family: "Times New Roman", serif; }
+  input[type="text"], input[type="number"], input[type="date"] { border: none; border-bottom: 1px solid #333; outline: none; font-family: "Times New Roman", serif; font-size: 9.5pt; padding: 1px 3px; background: transparent; width: 100%; color: #222; min-width: 0; }
+  input[type="text"]:focus, input[type="number"]:focus, input[type="date"]:focus { background: #f0f6ff; border-bottom-color: #003d7a; }
+  .no-field { border: 1px solid #003d7a !important; background: #f5f5f5 !important; padding: 3px 6px !important; width: 130px !important; max-width: 130px !important; flex: none !important; font-weight: bold; color: #003d7a !important; letter-spacing: 0.5px; cursor: default; }
+  .no-field:focus { background: #f5f5f5 !important; outline: none; box-shadow: none; }
+  .section-header { background: #BCBEC0; text-align: center; padding: 6px 10px; margin-bottom: 10px; }
+  .section-header .title { font-family: "Times New Roman", serif; font-size: 13pt; font-weight: bold; color: #231F20; }
+  .section-header .subtitle { font-family: "Times New Roman", serif; font-size: 9pt; font-style: italic; color: #231F20; margin-top: 2px; }
+  .section-body { padding: 4px 2mm; margin-bottom: 10px; }
+  .ass-field { flex: 1; display: flex; align-items: flex-end; gap: 4px; min-width: 140px; }
+  .ass-field label { font-size: 9pt; white-space: nowrap; font-family: "Times New Roman", serif; }
+  .ass-field input { border: none; border-bottom: 1px solid #333; outline: none; font-family: "Times New Roman", serif; font-size: 9pt; padding: 1px 3px; background: transparent; width: 100%; color: #666; }
+  .ass-field input::placeholder { color: #bbb; font-style: italic; font-size: 8pt; }
+  .ass-field input:focus { background: #f0f6ff; border-bottom-color: #003d7a; }
+  .nota-adiantamento { font-size: 8pt; font-style: italic; color: #444; font-family: "Times New Roman", serif; }
+  .form-footer { text-align: right; font-size: 7.5pt; color: #555; font-family: "Times New Roman", serif; margin-top: 8px; padding-right: 2mm; }
+  @media print {
+    body { background: white; padding: 0; }
+    .toolbar, .info-msg, .banner { display: none !important; }
+    #form-page { box-shadow: none; width: 100%; margin: 0; padding: 8mm 10mm; }
+    input { background: transparent !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <button class="btn btn-save" id="btn-salvar" onclick="exportPDF()" disabled>⬇ Salvar como PDF</button>
+  <button class="btn btn-clear" id="btn-limpar" onclick="limparFormulario()" disabled>✕ Novo Formulário</button>
+</div>
+
+<p class="info-msg" id="info-msg">Conectando ao SharePoint...</p>
+
+<div class="banner banner-warn" id="banner-local" style="display:none;">
+  <span>⚠️</span>
+  <div><strong>Modo local:</strong> <span id="banner-msg">Arquivo aberto fora do SharePoint.</span><br>
+  <span style="font-size:12px;color:#777;">Número com sufixo -L gerado localmente. Hospede no SharePoint para numeração centralizada.</span></div>
+</div>
+<div class="banner banner-ok" id="banner-ok" style="display:none;">
+  <span>✅</span>
+  <div id="banner-ok-msg">Número reservado com sucesso no SharePoint.</div>
+</div>
+<div class="banner banner-err" id="banner-err" style="display:none;">
+  <span>❌</span>
+  <div id="banner-err-msg">Erro ao conectar ao SharePoint.</div>
+</div>
+
+<div id="form-page">
+  <div class="header-box">
+    <div class="logo-area">
+      <img src="data:image/png;base64,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" alt="Portomed">
+    </div>
+    <div class="header-text">
+      <div class="header-title">Formulário de Autorização de Despesas e Reembolso</div>
+      <div class="header-subtitle">Anexar todas as Notas Fiscais/Recibos a este Formulário</div>
+    </div>
+  </div>
+
+  <div class="numero-row">
+    <label>No:</label>
+    <input type="text" class="no-field" id="numero" readonly placeholder="Aguardando...">
+  </div>
+
+  <div class="section-fields">
+    <div class="field-row">
+      <div class="field-group" style="flex:2">
+        <label>Nome do Solicitante:</label>
+        <input type="text" id="nome_solicitante">
+      </div>
+      <div class="field-group" style="flex:1">
+        <label>Setor:</label>
+        <input type="text" id="setor">
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field-group" style="flex:1">
+        <label>Função:</label>
+        <input type="text" id="funcao">
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field-group" style="flex:1.5">
+        <label>Descrição da Despesa:</label>
+        <input type="text" id="descricao">
+      </div>
+      <div class="field-group" style="flex:2">
+        <label>Justificativa:</label>
+        <input type="text" id="justificativa_geral">
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field-group" style="flex:1; max-width:250px">
+        <input type="text" id="descricao2">
+      </div>
+    </div>
+  </div>
+
+  <div class="section-header">
+    <div class="title">Adiantamento de Valor</div>
+    <div class="subtitle">(Quando Aplicável)</div>
+  </div>
+  <div class="section-body">
+    <div class="field-row">
+      <div class="field-group" style="flex:1">
+        <label>Valor:</label>
+        <input type="text" id="adiant_valor">
+      </div>
+      <div class="field-group" style="flex:1">
+        <label>Data:</label>
+        <input type="date" id="adiant_data">
+      </div>
+    </div>
+    <div class="field-row" style="margin-top:4px">
+      <div class="ass-field">
+        <label>Ass. do Solicitante:</label>
+        <input type="text" id="adiant_ass_sol" placeholder="(assinatura)">
+      </div>
+      <div class="ass-field">
+        <label>Ass. do Supervisor:</label>
+        <input type="text" id="adiant_ass_sup" placeholder="(assinatura)">
+      </div>
+    </div>
+  </div>
+
+  <div class="section-header">
+    <div class="title">Reembolso</div>
+    <div class="subtitle">(Quando Aplicável)</div>
+  </div>
+  <div class="section-body">
+    <div class="field-row">
+      <div class="field-group" style="flex:1">
+        <label>Valor Gasto:</label>
+        <input type="text" id="reemb_valor_gasto">
+      </div>
+      <div class="field-group" style="flex:1.2">
+        <label>Valor Excedido:</label>
+        <input type="text" id="reemb_valor_excedido">
+      </div>
+      <div class="field-group" style="flex:0.8">
+        <label>Data:</label>
+        <input type="date" id="reemb_data">
+      </div>
+    </div>
+    <div class="field-row" style="margin-top:2px; align-items:flex-start">
+      <span class="nota-adiantamento">(Em casos de valores adiantados)</span>
+    </div>
+    <div class="field-row">
+      <div class="field-group" style="flex:1">
+        <label>Justificativa:</label>
+        <input type="text" id="reemb_justificativa">
+      </div>
+    </div>
+    <div class="field-row" style="margin-top:6px">
+      <div class="ass-field">
+        <label>Ass. do Solicitante:</label>
+        <input type="text" id="reemb_ass_sol" placeholder="(assinatura)">
+      </div>
+      <div class="ass-field">
+        <label>Ass. do Supervisor:</label>
+        <input type="text" id="reemb_ass_sup" placeholder="(assinatura)">
+      </div>
+    </div>
+  </div>
+
+  <div class="form-footer">REG 018 - Rev. 00</div>
+</div>
+
+<script>
+// ── Estado global ──────────────────────────────────────────────
+let formNumero = "";
+
+function fmt(n) {
+  return new Date().getFullYear() + "/" + String(n).padStart(4, "0");
+}
+function setInfo(msg) { document.getElementById("info-msg").textContent = msg; }
+function showBanner(type, msg) {
+  ["local","ok","err"].forEach(t => {
+    document.getElementById("banner-" + t).style.display = (t === type) ? "flex" : "none";
+  });
+  if (type === "local") document.getElementById("banner-msg").textContent = msg;
+  if (type === "ok")    document.getElementById("banner-ok-msg").textContent = msg;
+  if (type === "err")   document.getElementById("banner-err-msg").textContent = msg;
+}
+function hideBanners() {
+  ["local","ok","err"].forEach(t => document.getElementById("banner-" + t).style.display = "none");
+}
+function enableButtons() {
+  document.getElementById("btn-salvar").disabled = false;
+  document.getElementById("btn-limpar").disabled = false;
+}
+
+// ── Firebase — transação atômica (número único garantido) ──────
+firebase.initializeApp({
+  apiKey:      "AIzaSyBZ-hgl8nJ_7B6_1-3l9hPMdwOeYTV7uA0",
+  authDomain:  "portomed-formularios.firebaseapp.com",
+  databaseURL: "https://portomed-formularios-default-rtdb.firebaseio.com",
+  projectId:   "portomed-formularios",
+  appId:       "1:869482301748:web:9713848de71cc93d4a3d61"
+});
+
+function getNextFirebase() {
+  return new Promise((resolve, reject) => {
+    firebase.database().ref("config/form_counter/seq").transaction(
+      cur => (cur || 0) + 1,
+      (err, committed, snap) => {
+        if (err || !committed) reject(err || new Error("Transação falhou"));
+        else resolve(snap.val());
+      }
+    );
+  });
+}
+
+// ── Fallback local ─────────────────────────────────────────────
+function getNextLocal() {
+  const n = (parseInt(localStorage.getItem("portomed_seq") || "0", 10)) + 1;
+  localStorage.setItem("portomed_seq", n);
+  return n;
+}
+
+// ── Gera número (Firebase ou local) ───────────────────────────
+async function gerarNumero() {
+  const campo = document.getElementById("numero");
+  campo.value = "Gerando...";
+  try {
+    const n = await getNextFirebase();
+    formNumero  = fmt(n);
+    campo.value = formNumero;
+    showBanner("ok", "Número " + formNumero + " reservado com sucesso.");
+    setInfo("Preencha os campos · Layout fixo · Salve como PDF ao finalizar");
+  } catch(err) {
+    console.warn("[Firebase] Fallback local:", err.message);
+    const n = getNextLocal();
+    formNumero  = fmt(n) + "-L";
+    campo.value = formNumero;
+    showBanner("err", "Sem conexão com servidor. Número local: " + formNumero);
+    setInfo("Modo local ativo");
+  }
+}
+
+// ── Inicializa ao carregar ─────────────────────────────────────
+window.addEventListener("DOMContentLoaded", async () => {
+  await gerarNumero();
+  document.getElementById("numero").readOnly = true;
+  enableButtons();
+});
+
+// ── Exportar PDF ───────────────────────────────────────────────
+async function exportPDF() {
+  const btnSalvar = document.getElementById("btn-salvar");
+  btnSalvar.disabled    = true;
+  btnSalvar.textContent = "Gerando...";
+
+  const inputs  = document.querySelectorAll("input");
+  const valores = {};
+  inputs.forEach(inp => { valores[inp.id] = inp.value; });
+
+  inputs.forEach(inp => {
+    const isNo = inp.classList.contains("no-field");
+    const span = document.createElement("span");
+    span.id = "__span_" + inp.id;
+    span.style.display      = "inline-block";
+    span.style.fontFamily   = "Times New Roman, serif";
+    span.style.fontSize     = "9.5pt";
+    span.style.color        = "#222";
+    span.style.verticalAlign = "bottom";
+    if (isNo) {
+      span.style.border     = "1px solid #003d7a";
+      span.style.background = "#f5f5f5";
+      span.style.padding    = "3px 6px";
+      span.style.width      = "130px";
+      span.style.fontWeight = "bold";
+      span.style.color      = "#003d7a";
+    } else {
+      span.style.borderBottom = "1px solid #333";
+      span.style.padding      = "1px 3px";
+      span.style.width        = "100%";
+    }
+    if (inp.type === "date" && inp.value) {
+      const p = inp.value.split("-");
+      span.textContent = p[2] + "/" + p[1] + "/" + p[0];
+    } else {
+      span.textContent = inp.value || "\u00A0";
+    }
+    inp.replaceWith(span);
+  });
+
+  document.querySelector(".toolbar").style.display  = "none";
+  document.querySelector(".info-msg").style.display = "none";
+  hideBanners();
+
+  const formEl = document.getElementById("form-page");
+  const rect   = formEl.getBoundingClientRect();
+  const mm     = 25.4 / 96;
+
+  const opt = {
+    margin:   0,
+    filename: "Formulario_Despesas_" + formNumero.replace("/", "-") + ".pdf",
+    image:    { type: "png", quality: 1.0 },
+    html2canvas: { scale: 4, useCORS: true, logging: false, dpi: 300, letterRendering: true },
+    jsPDF: { unit: "mm", format: [Math.ceil(rect.width * mm), Math.ceil(rect.height * mm)], orientation: "landscape", compress: false }
+  };
+
+  html2pdf().set(opt).from(formEl).save().then(() => {
+    document.querySelector(".toolbar").style.display  = "flex";
+    document.querySelector(".info-msg").style.display = "block";
+    showBanner("ok", "PDF gerado com sucesso! Número: " + formNumero);
+
+    Object.keys(valores).forEach(id => {
+      const span = document.getElementById("__span_" + id);
+      if (!span) return;
+      const inp = document.createElement("input");
+      inp.id = id;
+      if (id === "adiant_data" || id === "reemb_data") {
+        inp.type = "date";
+      } else if (id === "numero") {
+        inp.type = "text"; inp.className = "no-field"; inp.readOnly = true;
+      } else {
+        inp.type = "text";
+      }
+      inp.value = valores[id];
+      if (["adiant_ass_sol","adiant_ass_sup","reemb_ass_sol","reemb_ass_sup"].includes(id)) {
+        inp.placeholder = "(assinatura)";
+      }
+      inp.style.width = "100%";
+      span.replaceWith(inp);
+    });
+
+    btnSalvar.disabled    = false;
+    btnSalvar.textContent = "\u2B07 Salvar como PDF";
+  });
+}
+
+// ── Novo formulário ────────────────────────────────────────────
+async function limparFormulario() {
+  if (!confirm("Deseja limpar os campos e iniciar um NOVO formulário?\nUm novo número será gerado.")) return;
+
+  const btnLimpar = document.getElementById("btn-limpar");
+  const btnSalvar = document.getElementById("btn-salvar");
+  btnLimpar.disabled = true;
+  btnSalvar.disabled = true;
+  hideBanners();
+
+  document.querySelectorAll("input").forEach(inp => {
+    if (inp.id !== "numero") inp.value = "";
+  });
+
+  await gerarNumero();
+  enableButtons();
+  document.getElementById("nome_solicitante").focus();
+}
+</script></script>
+</body>
+</html>
